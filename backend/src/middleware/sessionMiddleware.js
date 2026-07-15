@@ -3,20 +3,12 @@ const { getDatabase, generateId } = require('../config/database');
 function sessionMiddleware(req, res, next) {
   const db = getDatabase();
   
-  // If user is authenticated, they don't need session-id
-  // Don't touch req.session (it's managed by express-session)
-  if (req.user) {
-    // User is authenticated - no guest session needed
-    req.guestSession = null;
-    return next();
-  }
-  
-  // For guest users, require session-id header
+  // Extract session ID from headers
   const sessionId = req.headers['session-id'];
   
   if (!sessionId) {
     return res.status(400).json({ 
-      error: 'Session ID required. Please include session-id header, or sign in to use your account.' 
+      error: 'Session ID required. Please include session-id header.' 
     });
   }
   
@@ -37,6 +29,8 @@ function sessionMiddleware(req, res, next) {
       created_at: new Date().toISOString(),
       last_active_at: new Date().toISOString()
     };
+    
+    console.log(`Created new session: ${sessionId}`);
   } else {
     // Update last active timestamp
     const updateStmt = db.prepare(`
@@ -51,12 +45,8 @@ function sessionMiddleware(req, res, next) {
     session.last_active_at = new Date().toISOString();
   }
   
-  // Attach guest session to request object (don't override req.session from express-session)
-  req.guestSession = {
-    id: sessionId,
-    created_at: session.created_at,
-    last_active_at: session.last_active_at
-  };
+  // Attach session to request object
+  req.session = session;
   
   next();
 }

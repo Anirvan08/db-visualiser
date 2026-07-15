@@ -6,8 +6,7 @@ const projectController = {
   createProject: async (req, res) => {
     try {
       const { name, databaseType } = req.body;
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
       
       if (!name || !databaseType) {
         return res.status(400).json({ 
@@ -21,12 +20,11 @@ const projectController = {
         });
       }
       
-      const project = Project.create(userId, sessionId, name, databaseType);
+      const project = Project.createForSession(sessionId, name, databaseType);
       
       res.status(201).json({
         message: 'Project created successfully',
-        project,
-        isAuthenticated: !!userId
+        project
       });
     } catch (error) {
       console.error('Error creating project:', error);
@@ -34,44 +32,28 @@ const projectController = {
     }
   },
   
-  // Get all projects for the current user or session
+  // Get all projects for the current session
   getAllProjects: async (req, res) => {
     try {
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
+      const projects = Project.getAllBySession(sessionId);
       
-      const projects = Project.getAll(userId, sessionId);
-      
-      // Add days until expiry for guest projects (only for session-based projects)
+      // Add days until expiry for each project
       const projectsWithExpiry = projects.map(project => {
-        if (!project.user_id) {
-          // Guest project - calculate expiry
-          const lastAccessed = new Date(project.last_accessed_at);
-          const thirtyDaysFromLastAccess = new Date(lastAccessed);
-          thirtyDaysFromLastAccess.setDate(thirtyDaysFromLastAccess.getDate() + 30);
-          
-          const now = new Date();
-          const daysUntilExpiry = Math.ceil((thirtyDaysFromLastAccess - now) / (1000 * 60 * 60 * 24));
-          
-          return {
-            ...project,
-            daysUntilExpiry: Math.max(0, daysUntilExpiry),
-            isGuest: true
-          };
-        } else {
-          // User project - permanent
-          return {
-            ...project,
-            daysUntilExpiry: null,
-            isGuest: false
-          };
-        }
+        const lastAccessed = new Date(project.last_accessed_at);
+        const thirtyDaysFromLastAccess = new Date(lastAccessed);
+        thirtyDaysFromLastAccess.setDate(thirtyDaysFromLastAccess.getDate() + 30);
+        
+        const now = new Date();
+        const daysUntilExpiry = Math.ceil((thirtyDaysFromLastAccess - now) / (1000 * 60 * 60 * 24));
+        
+        return {
+          ...project,
+          daysUntilExpiry: Math.max(0, daysUntilExpiry)
+        };
       });
       
-      res.json({ 
-        projects: projectsWithExpiry,
-        isAuthenticated: !!userId
-      });
+      res.json({ projects: projectsWithExpiry });
     } catch (error) {
       console.error('Error fetching projects:', error);
       res.status(500).json({ error: 'Failed to fetch projects' });
@@ -82,10 +64,9 @@ const projectController = {
   getProject: async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
       
-      const project = Project.getById(id, userId, sessionId);
+      const project = Project.getById(id, sessionId);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -99,8 +80,7 @@ const projectController = {
       
       res.json({
         project,
-        diagram,
-        isAuthenticated: !!userId
+        diagram
       });
     } catch (error) {
       console.error('Error fetching project:', error);
@@ -112,11 +92,10 @@ const projectController = {
   updateProject: async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
       const updates = req.body;
       
-      const updatedProject = Project.update(id, userId, sessionId, updates);
+      const updatedProject = Project.update(id, sessionId, updates);
       
       if (!updatedProject) {
         return res.status(404).json({ error: 'Project not found or access denied' });
@@ -136,10 +115,9 @@ const projectController = {
   deleteProject: async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
       
-      const deleted = Project.deleteById(id, userId, sessionId);
+      const deleted = Project.deleteById(id, sessionId);
       
       if (!deleted) {
         return res.status(404).json({ error: 'Project not found or access denied' });
@@ -156,10 +134,9 @@ const projectController = {
   exportProject: async (req, res) => {
     try {
       const { id } = req.params;
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
       
-      const project = Project.getById(id, userId, sessionId);
+      const project = Project.getById(id, sessionId);
       
       if (!project) {
         return res.status(404).json({ error: 'Project not found' });
@@ -191,8 +168,7 @@ const projectController = {
   importProject: async (req, res) => {
     try {
       const { project: projectData, diagram: diagramData } = req.body;
-      const userId = req.user ? req.user.id : null;
-      const sessionId = req.guestSession ? req.guestSession.id : null;
+      const sessionId = req.session.id;
       
       if (!projectData || !projectData.name || !projectData.database_type) {
         return res.status(400).json({ 
@@ -201,8 +177,7 @@ const projectController = {
       }
       
       // Create new project
-      const project = Project.create(
-        userId,
+      const project = Project.createForSession(
         sessionId, 
         projectData.name, 
         projectData.database_type
