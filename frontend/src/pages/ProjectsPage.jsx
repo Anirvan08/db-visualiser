@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { projectAPI, downloadJSON, readJSONFile } from "@/services/api";
+import { authAPI } from "@/services/auth";
 
 const DATABASE_ICONS = {
   postgres: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg",
@@ -15,11 +16,22 @@ export default function ProjectsPage({ onCreateNew, onLoadProject }) {
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [exportingId, setExportingId] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Load projects on component mount
+  // Load projects and check auth on component mount
   useEffect(() => {
+    checkAuth();
     loadProjects();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const response = await authAPI.getCurrentUser();
+      setIsAuthenticated(response.authenticated);
+    } catch (error) {
+      setIsAuthenticated(false);
+    }
+  };
 
   const loadProjects = async () => {
     try {
@@ -27,6 +39,7 @@ export default function ProjectsPage({ onCreateNew, onLoadProject }) {
       setError(null);
       const response = await projectAPI.getAllProjects();
       setProjects(response.projects || []);
+      setIsAuthenticated(response.isAuthenticated || false);
     } catch (err) {
       console.error('Error loading projects:', err);
       setError(err.message);
@@ -125,6 +138,8 @@ export default function ProjectsPage({ onCreateNew, onLoadProject }) {
 
   return (
     <div className="w-full max-w-6xl space-y-6">
+      {/* Guest user notice */}
+      
       {/* Header */}
       <Card>
         <CardHeader>

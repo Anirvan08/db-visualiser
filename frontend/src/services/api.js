@@ -1,20 +1,66 @@
 import { getOrCreateSessionId } from '../utils/sessionManager';
+import { authAPI } from './auth';
 
 // Use relative URLs in production, localhost in development
 const API_BASE_URL = import.meta.env.PROD ? '/api' : 'http://localhost:5001/api';
 
-// Helper function to make API requests with session header
+// Cache auth state to avoid checking on every request
+let cachedAuthState = null;
+let authCheckPromise = null;
+
+async function checkAuthOnce() {
+  if (authCheckPromise) return authCheckPromise;
+  
+  authCheckPromise = (async () => {
+    try {
+      const authResponse = await authAPI.getCurrentUser();
+      cachedAuthState = authResponse.authenticated;
+      return cachedAuthState;
+    } catch (error) {
+      cachedAuthState = false;
+      return false;
+    } finally {
+      // Reset promise after 5 seconds to allow re-checking
+      setTimeout(() => {
+        authCheckPromise = null;
+      }, 5000);
+    }
+  })();
+  
+  return authCheckPromise;
+}
+
+// Helper function to make API requests
+// For authenticated users: sends cookies (credentials: 'include')
+// For guest users: sends session-id header
 async function apiRequest(endpoint, options = {}) {
+  // Always get session ID (for guest users)
   const sessionId = getOrCreateSessionId();
+  
+  // Check auth state (cached)
+  let isAuthenticated = false;
+  try {
+    isAuthenticated = await checkAuthOnce();
+  } catch (error) {
+    // If auth check fails, assume guest
+    isAuthenticated = false;
+  }
   
   const config = {
     headers: {
       'Content-Type': 'application/json',
-      'session-id': sessionId,
       ...options.headers,
     },
     ...options,
   };
+
+  // Always send credentials for potential auth, and session-id for guests
+  // Backend will prioritize req.user over req.guestSession
+  config.credentials = 'include'; // Send cookies (for authenticated users)
+  if (!isAuthenticated) {
+    // Guest user - also send session-id header
+    config.headers['session-id'] = sessionId;
+  }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
@@ -24,6 +70,17 @@ async function apiRequest(endpoint, options = {}) {
   }
   
   return response.json();
+}
+
+// Export function to clear auth cache (call after login/logout)
+export function clearAuthCache() {
+  cachedAuthState = null;
+  authCheckPromise = null;
+}
+
+// Make it available globally for auth service
+if (typeof window !== 'undefined') {
+  window.clearAuthCache = clearAuthCache;
 }
 
 // Project API methods

@@ -7,10 +7,11 @@ const diagramController = {
     try {
       const { projectId } = req.params;
       const { metadata, nodes, edges } = req.body;
-      const sessionId = req.session.id;
+      const userId = req.user ? req.user.id : null;
+      const sessionId = req.guestSession ? req.guestSession.id : null;
       
       // Verify project ownership
-      const project = Project.getById(projectId, sessionId);
+      const project = Project.getById(projectId, userId, sessionId);
       if (!project) {
         return res.status(404).json({ error: 'Project not found or access denied' });
       }
@@ -41,10 +42,11 @@ const diagramController = {
   getDiagram: async (req, res) => {
     try {
       const { projectId } = req.params;
-      const sessionId = req.session.id;
+      const userId = req.user ? req.user.id : null;
+      const sessionId = req.guestSession ? req.guestSession.id : null;
       
       // Verify project ownership
-      const project = Project.getById(projectId, sessionId);
+      const project = Project.getById(projectId, userId, sessionId);
       if (!project) {
         return res.status(404).json({ error: 'Project not found or access denied' });
       }

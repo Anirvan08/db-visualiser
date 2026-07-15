@@ -1,0 +1,22 @@
+{
+  "name": "db-visualiser",
+  "version": "1.0.0",
+  "description": "Database ERD Visualizer",
+  "main": "backend/src/app.js",
+  "scripts": {
+    "start": "cd backend && node src/app.js",
+    "postinstall": "cd backend && npm install --production"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "node-cron": "^4.2.1",
+    "uuid": "^13.0.0"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
+
